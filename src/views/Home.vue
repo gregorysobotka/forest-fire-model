@@ -1,46 +1,66 @@
 <template>
-  <v-container fluid>
-    <div :style="gridContainerStyles" class="mx-auto">
-      <div class="grid-container pa-4">
-        <v-row v-for="(tRow, r) in grid" :key="'row-'+r" no-gutters>
-          <Terrain cols="1" v-for="(tSquare, c) in tRow" :key="'ti-'+r+'-'+c" :value="tSquare" :row="r" :col="c" />
-        </v-row>
+  <v-container class="pa-0" fluid>
+    <div class="mx-auto grid-container pt-2">
+      <div :style="gridContainerStyles" class="region">
+        <div v-for="(tRow, r) in grid" :key="'row-'+r" class="d-flex justify-center terrain-row" no-gutters>
+          
+          <div 
+            v-for="(tSquare, c) in tRow" 
+            :key="'ti-'+r+'-'+c"
+            :style="gridSize2"
+            class="gridSquare"
+          >
+            <Empty v-if="tSquare==0" />
+            <Tree v-if="tSquare==1" />
+            <Fire v-if="tSquare==2" />
+          </div>
+
+        </div>
+        <v-overlay v-if="pause=='test'" style="position: absolute;" opacity="0.75">
+          <p class="text-h4">Paused</p>
+        </v-overlay>
       </div>
     </div>
-    <v-container>
-    <v-row class="mt-10" justify="center">
-      
-        <v-btn small @click="startLifecycle" :disabled="!pause">START</v-btn>
-        <v-btn small @click="stopLifecycle" :disabled="pause">STOP</v-btn>
-    </v-row>
-    <v-row class="mt-10" justify="center">
-      <v-btn small @click="timeOut=timeOut+200">SLOWER</v-btn>
-      <v-btn small @click="timeOut>50 ? timeOut=timeOut-50 : timeOut=timeOut">FASTER</v-btn>
-      <v-btn small @click="evaluateGrid">EVAL</v-btn>
-      <v-btn small @click="stopLifecycle">RESET</v-btn>
-    </v-row>
-    <v-row class="mt-10" justify="center">
-      <v-col cols="12" v-if="!pause" class="text-center">
-        <p>Running</p>
-        {{timeOut}}
-      </v-col>
-    </v-row>
-    </v-container>
+    {{pause}} - {{this.delay}}
+    <GridControl />
+    <!-- {{neighborsMap}} -->
   </v-container>
 </template>
 
 <style lang="scss" scoped>
+.footer-nav {
+  position: fixed;
+  bottom: 0;
+  width: 100%;
+  // opacity: 0.5;
+}
+.region {
+  margin: 0 auto;
+}
+.terrain-row {
+  // height: 2em;
+}
 .grid-container {
-  overflow: hidden;
   background: #A1887F;
+  // position: relative;
+}
+.gridSquare {
+  overflow: hidden;
 }
 </style>
 
 <script lang="ts">
 import Vue from 'vue';
+import { mapState } from 'vuex';
 // import workerpool from 'workerpool';
 // import chance from 'chance';
-import Terrain from '@/components/Terrain.vue';
+// import Terrain from '@/components/Terrain.vue';
+
+import GridControl from '@/components/GridControl';
+
+import Fire from '@/components/Fire.vue';
+import Tree from '@/components/Tree.vue';
+import Empty from '@/components/Empty.vue';
 
 import { MediumGrid as grid } from '@/forest-data';
 import { EMPTY, TREE, FIRE, ROCK } from '@/forest-types';
@@ -48,10 +68,6 @@ import { EMPTY, TREE, FIRE, ROCK } from '@/forest-types';
 // const Chance = new chance();
 
 function randn(n: number) {
-  const num = Math.floor(Math.random() * 1000) + 1;
-  return n >= num;
-}
-function randnf(n: number) {
   const num = Math.floor(Math.random() * 10000) + 1;
   return n >= num;
 }
@@ -60,28 +76,83 @@ function randnf(n: number) {
 export default Vue.extend({
   name: 'Home',
   components: {
-    Terrain
+    GridControl,
+    Fire,
+    Tree,
+    Empty
+  },
+  data: () => ({
+    windowWidth: window.innerWidth,
+    grid: grid,
+    transformGrid: {} as any,
+    resetCycle: false,
+    evalActive: false,
+    neighborsMap: {},
+    prob:{
+      regrow: 60,
+      extendedBurnRadius: 1000,
+      burn: 8000,
+      lightening: 2
+    }
+  }),
+  mounted() {
+    this.load();
   },
   computed: {
-    gridContainerStyles(): string {
-      const containerWidth = this.grid[0].length + 2;
-      return `width: ${containerWidth}em;`;
+    ...mapState({
+      delay: state => state.delay,
+      pause: state => state.pause
+    }),
+    width(){
+      return window.innerWidth - 40;
     },
-    // hashTable() {
-    //   const table: { [key: string]: number } = {};
-    //   this.grid.forEach((row, r) => {
-    //     row.forEach((col: number, c) => {
-    //       const hashKey = `r${r}c${c}`;
-    //       table[hashKey] = col;
-    //     });
-    //   });
-    //   return table;
-    // }
+    gridSize(){
+      let gsize = Math.round(this.width / this.cols);
+      if(gsize > 40) gsize = 40;
+
+      return gsize;
+    },
+    gridSize2(){
+      let gsize = Math.round(this.width / this.cols);
+      if(gsize > 40) gsize = 40;
+
+      return `width: ${this.gridSize}px; height: ${this.gridSize}px`;
+    },
+    gridContainerStyles(): string {
+      return `width: ${this.gridSize * this.cols}px; height: ${this.gridSize * this.rows}px`;
+    },
+    rows(){
+      return this.grid.length ;
+    },
+    cols(): number {
+      return this.grid[0].length;
+    },
+    rowMax(): number {
+      return this.grid.length - 1;
+    },
+    colMax(): number {
+      return this.grid[0].length - 1;
+    }
+  },
+  watch: {
+    resetCycle(updatedResetCycle) {
+      if(updatedResetCycle && !this.evalActive) this.reloadGrid();
+    },
+    evalActive(updatedEvalActive) {
+      if(!updatedEvalActive && this.resetCycle) this.reloadGrid();
+    },
+    pause(pauseLifeCycle) {
+      if(!pauseLifeCycle) this.evaluateGrid();
+    }
   },
   methods:{
+    reloadGrid() {
+      this.resetCycle = false;
+      this.grid = grid;
+    },
     evaluateGrid() {
-      // this.transformGrid = JSON.parse(JSON.stringify(this.grid));
-      // this.transformGrid = {};
+    
+      this.evalActive = true;
       
       const updatedGrid = this.grid.map((row, r) => {
         return row.map((terrain, c) => {
@@ -91,90 +162,194 @@ export default Vue.extend({
 
       this.grid = updatedGrid;
       this.transformGrid = {};
-
-      if(!this.pause) {
-        setTimeout(() => this.evaluateGrid(), this.timeOut);
-      } else if(this.resetCycle) {
-        this.grid = grid;
-      }
+  
+        setTimeout(() => {
+          if(!this.pause) {
+            this.evaluateGrid();
+          } else {
+            this.evalActive = false;
+          }
+        }, this.delay);
     },
     terrainTransform(r: number, c: number, value: number): number {
-      let returnValue = value;
-      if(value ===0) {
-        // empty
-        returnValue = this.evalEmpty(r, c);
-      } else if(value === 1) {
-        // tree
-        // add logic, burn if neighbor burning
-        returnValue = this.evaluateTree(r, c);
-      } else if(value===2) {
-        return 0;
-      }
-      return returnValue;
-    },
-    evalEmpty(r: number, c: number): number {
+
+      if(value === FIRE) return EMPTY;
       
-      const neighborsOnFire = 0;
-      const neighborTrees = 0;
+      let returnValue = value;
 
-      let probNewTree = 40;
-      if(neighborsOnFire > 0){
-        probNewTree = 0;
-      } else if(neighborTrees > 0) {
-        probNewTree = probNewTree + (neighborTrees * 150);
+      const allNeighbors = this.allNeighbors(r, c);
+
+      if(value === TREE) {
+        returnValue = this.evaluateTree(allNeighbors);
+      } else if(value === EMPTY) {
+        returnValue = this.evalEmpty(allNeighbors);
       }
-      // console.log(coords);
-      // console.log(neighborsOnFire, neighborTrees, probNewTree);
-      return randn(probNewTree) && randn(probNewTree) ? 1 : 0;
+
+      return returnValue;
+
     },
-    neighbors(r: number, c: number) {
+    isAGoodNeigbhor(coords: {r: number;c: number}): boolean {
+      const rowMin = 0;
+      const colMin = 0;
+      const { r, c } = coords;
+      if(r < rowMin || r > this.rowMax) return false;
+      if(c < colMin || c > this.colMax) return false;
+      return true;
+    },
+    load() {
+       this.grid.forEach((row, r) => {
+        row.forEach((terrain, c) => this.determineNeighbors(r, c));
+      });
+    },
+    determineNeighbors(r: number, c: number) {
+      
+      const cellKey = `r${r}c${c}`;
+      // n = neighbors 
+      // en = extended neigbhors 
 
-      const coords = [];
+      const n = [
+        { r: r-1, c: c-1 }, // upper left
+        { r: r-1, c }, // top center
+        { r: r-1, c: c+1 }, // upper right
+        { r, c: c+1 }, // right col
+        { r: r+1, c: c+1 }, // lower right col
+        { r: r+1, c }, // bottom center
+        { r: r+1, c: c-1 }, // bottom left
+        { r, c: c-1 } // left col
+      ].filter(
+        (coord) => this.isAGoodNeigbhor(coord)
+      );
 
-      const gridRowsLength = grid.length - 1;
-      const gridColsLength = grid[0].length - 1;
+      const en = [
+        // { r: r-2, c: c-1 }, // top center left
+        { r: r-2, c }, // top center
+        // { r: r-2, c: c+1 }, // top center right
+        // { r: r+2, c: c-1 }, //bottom center left
+        { r: r+2, c }, // bottom center
+        // { r: r+2, c: c+1 }, // bottom center right
+        // { r: r-1, c: c-2 }, // center left top
+        { r, c: c-2 }, // center left
+        // { r: r+1, c: c-2 }, // center left
+        // { r: r-1, c: c+2 }, // center right
+        { r, c: c+2 }, // center right
+        // { r: r+1, c: c+2 } // center right
+      ].filter(
+        (coord) => this.isAGoodNeigbhor(coord)
+      );
+
+      const cell = {
+        n,
+        en
+      };
+
+      // this.neighborsMap[cellKey] = cell;
+
+      this.$set(this.neighborsMap, cellKey, cell);
+
+    },
+    allNeighbors(r: number, c: number) {
+      
+      const cellKey = `r${r}c${c}`;
+      
+      const allValidRelationships = this.neighborsMap[cellKey];
+      // console.log(allValidRelationships);
+      const { n, en } = allValidRelationships;
+      const neighborCoords = n;
+      const extendedNeighborCoords = en;
+      
+      let treesOnFire = 0;
+      let trees = 0;
+
+      neighborCoords.forEach(coord => {
+        const gridValue = this.gridValueAtLocation(coord);
+        if(gridValue === TREE) trees++;
+        if(gridValue === FIRE) treesOnFire++;
+      });
+
+      const neighbors = {
+        grids: neighborCoords.length,
+        treesOnFire,
+        trees
+      };
+
+      let extendedTreesOnFire = 0;
+      let extendedTrees = 0;
+
+      extendedNeighborCoords.forEach(coord => {
+        const gridValue = this.gridValueAtLocation(coord);
+        if(gridValue === TREE) extendedTrees++;
+        if(gridValue === FIRE) extendedTreesOnFire++;
+      });
+
+      const extendedNeighbors = {
+        grids: extendedNeighborCoords.length,
+        extendedTreesOnFire,
+        extendedTrees
+      };
+      
+      return {
+        neighbors,
+        extendedNeighbors
+      };
+    },
+    extendedNeighbors(r: number, c: number) {
+      // const cellKey = `r${r}c${c}`;
+      const extendedCoords = [];
 
       let treesOnFire = 0;
       let trees = 0;
 
-      if(r > 0){
-        if(c > 0) coords.push({ r: r-1, c: c-1 }); // upper left col
-        coords.push({ r: r-1, c }); // top center
-        if(r < gridRowsLength) coords.push({ r: r-1, c: c+1 }); // upper right
-      }
-      if(c < gridColsLength) coords.push({ r, c: c+1 }); // right col
-      if(r > 1 && r < gridRowsLength-1) coords.push({ r: r+1, c: c+1 }); // lower right col
-      if(r < gridRowsLength) coords.push({ r: r+1, c }); // bottom center
-      if(c > 0 && r < gridRowsLength) coords.push({ r: r+1, c: c-1 }); // bottom left
-      if(c > 0) coords.push({ r, c: c-1 }); // left col
-      
-      const neighbors = coords.forEach(coord => {
-        // const kn = `r${coord.r}c${coord.c}`;
-        // if(typeof this.transformGrid[kn] !== 'undefined'){
-        //   return this.transformGrid[kn];
-        // }
-        const gridValue = this.grid[coord.r][coord.c];
-        // this.transformGrid[kn] = gridValue;
+      extendedCoords.forEach(coord => {
+        const gridValue = this.gridValueAtLocation(coord);
         if(gridValue === TREE) trees++;
         if(gridValue === FIRE) treesOnFire++;
-        return gridValue;
       });
       
       return {
-        neighbors: coords.length,
+        grids: extendedCoords.length,
         treesOnFire,
         trees
       }
     },
-    evaluateTree(r: number, c: number): number {
+    evalEmpty(region): number {
+      
+      const { neighbors, extendedNeighbors } = region;
 
-      const neighbors = 0;
-      if(neighbors > 0) {
-        // Neighbor on fire, tree ignites
-        return 2;
-      } else {
-        return randnf(30) && randnf(40) ? 2 : 1;
+      let probNewTree = this.prob.regrow;
+
+      if(neighbors.treesOnFire > 0 || extendedNeighbors.treesOnFire > 0){
+        probNewTree = 0;
+      } else if(neighbors.trees > 0 || extendedNeighbors.trees > 0) {
+        probNewTree = (this.prob.regrow * neighbors.trees * 12) + (this.prob.regrow * extendedNeighbors.trees * 3);
       }
+      return randn(probNewTree) && randn(probNewTree) ? TREE : EMPTY;
+    },
+    evaluateTree(region): number {
+      // console.log(region);
+      const { neighbors, extendedNeighbors } = region;
+      
+      if(neighbors.treesOnFire > 0) {
+        // Neighbor on fire, tree ignites
+        // const treeIgnitesProb = neighbors.treesOnFire * this.prob.burn;
+        return randn(this.prob.burn) ? FIRE : TREE;
+      } else if(extendedNeighbors.treesOnFire > 0) {
+        const treeIgnitesProb = extendedNeighbors.treesOnFire * this.prob.extendedBurnRadius;
+        return randn(treeIgnitesProb) ? FIRE : TREE;
+      }
+      // return TREE;
+      return randn(this.prob.lightening) ? FIRE : TREE;
+      
+    },
+    gridValueAtLocation(coords: {r: number;c: number}): number {
+      const { r, c } = coords;
+      // const cellKey = `r${r}c${c}`;
+      // const kn = `r${r}c${c}`;
+      // if(typeof this.transformGrid[kn] !== 'undefined'){
+      //   return this.transformGrid[kn];
+      // }
+      const gridValue = this.grid[r][c];
+      // this.transformGrid[kn] = gridValue;
+      return gridValue;
     },
     startLifecycle() {
       this.pause = false;
@@ -182,18 +357,11 @@ export default Vue.extend({
     },
     stopLifecycle() {
       this.pause = true;
+    },
+    resetForest() {
+      this.resetCycle = true;
+      this.pause = true;
     }
-  },
-  data: () => ({
-    grid: grid,
-    transformGrid: {} as any,
-    timeOut: 10,
-    resetCycle: false,
-    pause: true,
-    square: {
-      width: 2.5,
-      height: 2.5
-    }
-  }),
+  }
 });
 </script>

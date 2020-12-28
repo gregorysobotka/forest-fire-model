@@ -29,7 +29,7 @@
       <router-view></router-view>
     </v-main>
 
-    <v-bottom-sheet
+    <!-- <v-bottom-sheet
       v-model="sheet"
       inset
     >
@@ -51,7 +51,7 @@
       >
         <v-row>
           <v-col>
-            <!--  -->
+            
           </v-col>
           <v-col align="right">
             <v-btn
@@ -63,10 +63,16 @@
           </v-col>
         </v-row>
       </v-sheet>
-    </v-bottom-sheet>
+    </v-bottom-sheet> -->
 
   </v-app>
 </template>
+
+<style lang="scss">
+html {
+  overflow-x: visible;
+}
+</style>
 
 <script lang="ts">
 import Vue from 'vue';
