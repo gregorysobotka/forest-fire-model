@@ -4,15 +4,16 @@
       app
       dark
       dense
+      flat
     >
-      <div class="d-flex align-center">
+      <!-- <div class="d-flex align-center">
         <v-btn
           to="/"
           text
         >
           Forest Fire model
         </v-btn>
-      </div>
+      </div> -->
 
       <v-spacer></v-spacer>
 
@@ -76,6 +77,11 @@ html {
 
 <script lang="ts">
 import Vue from 'vue';
+import { GridEcosystem } from '@/helpers';
+// console.log(GridEcosystem);
+
+const tes = new GridEcosystem(10, 10);
+console.log(tes)
 
 export default Vue.extend({
   name: 'App',

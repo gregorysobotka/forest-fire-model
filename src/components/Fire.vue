@@ -14,16 +14,15 @@
 // }
 .fire-terrain {
     background: #EF9A9A;
-    // position: relative !important;
-    // border-radius: 2em;
-}
-.grid-square {
+    // background: #E53935;
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
     // .v-icon {
     //     width: 100%;
     //     height: 100%;
     // }
 }
-
 </style>
 
 <script lang="ts">
