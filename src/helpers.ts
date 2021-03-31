@@ -11,6 +11,8 @@ interface NeighborMap {
 interface FullEcosystem {
   grid: GridMap;
   neighbors: NeighborMap;
+  extendedNeighbors: NeighborMap;
+  cellKeys: string[];
 }
 
 class GridEcosystem {
@@ -20,6 +22,7 @@ class GridEcosystem {
   grid: GridMap;
   neighbors: NeighborMap;
   extendedNeighbors: NeighborMap;
+  cellKeys: string[]
 
   // extended neighbors
 
@@ -27,10 +30,11 @@ class GridEcosystem {
     this.rows = rows;
     this.cols = cols;
 
-    const { grid, neighbors, extendedNeighbors } = this.createGrid();
+    const { grid, neighbors, extendedNeighbors, cellKeys } = this.createGrid();
     this.grid = grid;
     this.neighbors = neighbors;
     this.extendedNeighbors = extendedNeighbors;
+    this.cellKeys = cellKeys;
     // extended neighbors
   }
 
@@ -42,6 +46,7 @@ class GridEcosystem {
     const grid = {};
     const neighbors = {};
     const extendedNeighbors = {};
+    const cellKeys = [];
   
     for(let $r=0; $r<rows; $r++) {
       for(let $c=0; $c<cols; $c++) {
@@ -49,6 +54,7 @@ class GridEcosystem {
         grid[cellKey] = 0;
         neighbors[cellKey] = this.validNeighbors($r, $c);
         extendedNeighbors[cellKey] = this.validExtendedNeighbors($r, $c);
+        cellKeys.push(cellKey);
         // extended neighbors
       }
     }
@@ -56,7 +62,8 @@ class GridEcosystem {
     return {
       grid,
       neighbors,
-      extendedNeighbors
+      extendedNeighbors,
+      cellKeys
     }
   
   }
@@ -88,7 +95,6 @@ class GridEcosystem {
       { r, c: c+2 }, // center right
       { r: r+2, c }, // bottom center
       { r, c: c-2 }, // center left
-
     // { r: r-2, c: c-1 }, // top center left
     // { r: r-2, c: c+1 }, // top center right
     // { r: r+2, c: c-1 }, //bottom center left

@@ -18,10 +18,10 @@
     width: 100%;
     height: 100%;
     border-radius: 50%;
-    // .v-icon {
-    //     width: 100%;
-    //     height: 100%;
-    // }
+    .v-icon {
+        width: 100%;
+        height: 100%;
+    }
 }
 </style>
 

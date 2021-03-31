@@ -25,10 +25,8 @@
 import Vue from 'vue';
 import { mapState } from 'vuex';
 
-import { createGrid, gridType } from '@/forest-data';
-
-import GridControl from '@/components/GridControl';
-import Region from '@/components/Region';
+import GridControl from '@/components/GridControl.vue';
+import Region from '@/components/Region.vue';
 
 // const pool = workerpool.pool();
 
@@ -39,8 +37,8 @@ export default Vue.extend({
     Region
   },
   data: () => ({
-    rows: 10,
-    cols: 10
+    rows: 50,
+    cols: 100
   }),
   // mounted() {
 
@@ -51,13 +49,7 @@ export default Vue.extend({
   computed: {
     // ...mapState({
 
-    // }),
-    // grid() {
-    //   return createGrid(this.rows, this.cols);
-    // },
-    // ready() {
-    //   return this.grid.length > 0;
-    // }
+    // })
   }
 });
 </script>

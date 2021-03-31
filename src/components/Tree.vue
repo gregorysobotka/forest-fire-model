@@ -9,11 +9,11 @@
     background: #33691E;
     width: 100%;
     height: 100%;
-    border-radius: 25%;
-    // .v-icon {
-    //     width: 100%;
-    //     height: 100%;
-    // }
+    // border-radius: 25%;
+    .v-icon {
+        width: 100%;
+        height: 100%;
+    }
 }
 </style>
 

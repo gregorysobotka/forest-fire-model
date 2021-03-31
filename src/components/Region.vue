@@ -2,16 +2,16 @@
   <div>
     <!-- {{grid}} -->
     <div v-if="gridReady" :style="gridContainerStyles" class="region">
-      <div v-for="(tRow, r) in grid" :key="'row-'+r" class="d-flex justify-center terrain-row">
-        <div 
-          v-for="(cellValue, c) in tRow" 
-          :key="'ti-'+r+'-'+c"
+      <div class="justify-center">
+        <div
+          v-for="cellKey in cellKeys"
+          :key="cellKey"
           :style="gridStyles"
-          class="gridSquare"
+          class="gridSquare float-left"
         >
-          <Empty v-show="cellValue==0" />
-          <Tree v-show="cellValue==1" />
-          <Fire v-show="cellValue==2" />
+          <Empty v-show="gridMap[cellKey]==0" />
+          <Tree v-show="gridMap[cellKey]==1" />
+          <Fire v-show="gridMap[cellKey]==2" />
         </div>
       </div>
   
@@ -28,7 +28,6 @@
     </div>
     <!-- <v-btn @click="evaluateGrid">EVAL</v-btn> {{evalActive}} -->
     <!-- <v-btn @click="toggleCell(0, 0, 1)">EVAL</v-btn> -->
-    {{probabilityMultiplier}}
   </div>
 </template>
 
@@ -46,7 +45,7 @@
 <script lang="ts">
 import Vue from 'vue';
 import { mapState } from 'vuex';
-import { createGrid, gridType, gridDefault } from '@/forest-data';
+// import { createGrid, gridType, gridDefault } from '@/forest-data';
 // import workerpool from 'workerpool';
 // import chance from 'chance';
 // import Terrain from '@/components/Terrain.vue';
@@ -58,11 +57,11 @@ import Empty from '@/components/Empty.vue';
 import { EMPTY, TREE, FIRE, ROCK } from '@/forest-types';
 
 const strikeLimit = 5;
-// const baseGrid = createGrid(30,80);
-// console.log(JSON.stringify(baseGrid))
-// const Chance = new chance();
 
 // const pool = workerpool.pool();
+
+
+import { GridEcosystem } from '@/helpers';
 
 export default Vue.extend({
   props: {
@@ -85,11 +84,14 @@ export default Vue.extend({
     windowWidth: window.innerWidth,
     resetCycle: false,
     evalActive: false,
-    neighborsMap: {},
-    gridHashMap: {},
     probabilityMultiplier: 1,
     gridCount: 0,
-    grid: gridDefault,
+    grid: [[]],
+    gridMap: {},
+    displayGridMap: {},
+    neighborsMap: {},
+    gridHashMap: {},
+    cellKeys: [],
     lighteningStrikes: 0,
     cycles: 0,
     prob:{
@@ -100,6 +102,12 @@ export default Vue.extend({
     }
   }),
   mounted() {
+    const FullGridEcosystem = new GridEcosystem(this.rows, this.cols);
+    this.cellKeys = FullGridEcosystem.cellKeys;
+    this.gridMap = FullGridEcosystem.grid;
+    this.displayGridMap = FullGridEcosystem.grid;
+    this.neighborsMap = FullGridEcosystem.neighbors;
+    this.extendedNeighborsMap = FullGridEcosystem.extendedNeighbors;
     this.load();
   },
   updated() {
@@ -128,32 +136,19 @@ export default Vue.extend({
       return num <= probThreshold;
     },
     load() {
-      
-      this.grid.forEach((row, r) => {
-        row.forEach((terrain, c) => this.determineNeighbors(r, c));
-      });
-
       this.gridCount = this.rows * this.cols;
       // this.probabilityMultiplier = this.gridCount / 1000;
-
-    },
-    reloadGrid() {
-      this.resetCycle = false;
-      // this.grid = grid;
     },
     evaluateGrid() {
     
       this.evalActive = true;
-      
-      const updatedGrid = this.grid.map((row, r) => {
-        const updatedRow = row.map((terrain, c) => {
-          const newGridVal = this.terrainTransform(r, c, terrain);
-          return newGridVal;
-        });
-        return updatedRow;
-      });
+      const gridTransformed = {};
 
-      this.$set(this, 'grid', updatedGrid);
+      this.cellKeys.forEach((cellKey) => { 
+        const cellUpdated = this.cellTransform(cellKey);
+        gridTransformed[cellKey] = cellUpdated;
+        this.displayGridMap[cellKey] = cellUpdated;
+      });
 
       this.cycles++;
       this.evalActive = false;
@@ -162,90 +157,30 @@ export default Vue.extend({
         this.lighteningStrikes = 0;
       }
 
-      this.gridHashMap = {}
+      this.gridMap = gridTransformed;
 
     },
-    terrainTransform(r: number, c: number, value: number): number {
+    cellTransform(cellKey: string): number {
 
-      if(value === FIRE) return EMPTY;
-      
+      const value = this.gridMap[cellKey];
       let returnValue = value;
 
-      const allNeighbors = this.allNeighbors(r, c);
-
-      if(value === TREE) {
-        returnValue = this.evaluateTree(allNeighbors);
-      } else if(value === EMPTY) {
-        returnValue = this.evalEmpty(allNeighbors);
+      if(value === FIRE) {
+        returnValue = EMPTY;
+      } else {
+        const allNeighbors = this.allNeighbors(cellKey);
+        if(value === TREE) {
+          returnValue = this.evaluateTree(allNeighbors);
+        } else if(value === EMPTY) {
+          returnValue = this.evalEmpty(allNeighbors);
+        }
       }
-
       return returnValue;
-
     },
-    isAGoodNeigbhor(coords: {r: number;c: number}): boolean {
-      const rowMin = 0;
-      const colMin = 0;
-      const { r, c } = coords;
-      if(r < rowMin || r > this.rowMax) return false;
-      if(c < colMin || c > this.colMax) return false;
-      return true;
-    },
-    determineNeighbors(r: number, c: number) {
-      
-      const cellKey = `r${r}c${c}`;
-      // n = neighbors 
-      // en = extended neigbhors 
-
-      const n = [
-        { r: r-1, c: c-1 }, // upper left
-        { r: r-1, c }, // top center
-        { r: r-1, c: c+1 }, // upper right
-        { r, c: c+1 }, // right col
-        { r: r+1, c: c+1 }, // lower right col
-        { r: r+1, c }, // bottom center
-        { r: r+1, c: c-1 }, // bottom left
-        { r, c: c-1 } // left col
-      ].filter(
-        (coord) => this.isAGoodNeigbhor(coord)
-      );
-
-      const en = [
-        // { r: r-2, c }, // top center
-        // { r, c: c+2 }, // center right
-        // { r: r+2, c }, // bottom center
-        // { r, c: c-2 }, // center left
-        
-        // { r: r-2, c: c-1 }, // top center left
-        // { r: r-2, c: c+1 }, // top center right
-        // { r: r+2, c: c-1 }, //bottom center left
-        // { r: r+2, c: c+1 }, // bottom center right
-        // { r: r-1, c: c-2 }, // center left top
-        // { r: r+1, c: c-2 }, // center left
-        // { r: r-1, c: c+2 }, // center right
-        // { r: r+1, c: c+2 } // center right
-      ].filter(
-        (coord) => this.isAGoodNeigbhor(coord)
-      );
-
-      const cell = {
-        n,
-        en
-      };
-
-      // this.neighborsMap[cellKey] = cell;
-
-      this.$set(this.neighborsMap, cellKey, cell);
-
-    },
-    allNeighbors(r: number, c: number) {
-      
-      const cellKey = `r${r}c${c}`;
-
-      const allValidRelationships = this.neighborsMap[cellKey];
-      
-      const { n, en } = allValidRelationships;
-      const neighborCoords = n;
-      const extendedNeighborCoords = en;
+    
+    allNeighbors(cellKey: string) {
+      const neighborCoords = this.neighborsMap[cellKey];
+      const extendedNeighborCoords = this.extendedNeighborsMap[cellKey];
       
       let treesOnFire = 0;
       let trees = 0;
@@ -253,14 +188,14 @@ export default Vue.extend({
       let extendedTreesOnFire = 0;
       let extendedTrees = 0;
 
-      neighborCoords.forEach(coord => {
-        const gridValue = this.gridValueAtLocation(coord);
+      neighborCoords.forEach(neighborCellkey => {
+        const gridValue = this.gridMap[neighborCellkey];
         if(gridValue === TREE) trees++;
         if(gridValue === FIRE) treesOnFire++;
       });
 
-      extendedNeighborCoords.forEach(coord => {
-        const gridValue = this.gridValueAtLocation(coord);
+      extendedNeighborCoords.forEach(exNeighborCellkey => {
+        const gridValue = this.gridMap[exNeighborCellkey];
         if(gridValue === TREE) extendedTrees++;
         if(gridValue === FIRE) extendedTreesOnFire++;
       });
@@ -288,7 +223,7 @@ export default Vue.extend({
       if(neighbors.treesOnFire > 0 || extendedNeighbors.treesOnFire > 0){
         probNewTree = 0;
       } else if(neighbors.trees > 0 || extendedNeighbors.trees > 0) {
-        probNewTree = probNewTree + (neighbors.trees * 10) + (extendedNeighbors.trees * 5);
+        probNewTree = probNewTree + (neighbors.trees * 50) + (extendedNeighbors.trees * 10);
       }
       return this.randn(probNewTree) ? TREE : EMPTY;
     },
@@ -303,7 +238,6 @@ export default Vue.extend({
         newTreeValue = FIRE;
       } else if(extendedNeighbors.treesOnFire > 0) {
         const treeIgnitesProb = neighbors.treesOnFire * this.prob.extendedBurnRadius * 100;
-        // console.log(treeIgnitesProb);
         newTreeValue = this.randn(treeIgnitesProb) ? FIRE : TREE;
       } else if(this.lighteningStrikes < strikeLimit) {
         newTreeValue = this.lighteningProb(this.prob.lightening) ? FIRE : TREE;
@@ -336,12 +270,12 @@ export default Vue.extend({
     }
   },
    computed: {
-    ...mapState({
-      delay: state => state.delay,
-      pause: state => state.pause,
-      // rows: state => state.rows,
-      // cols: state => state.cols
-    }),
+    delay(): number {
+      return this.$store.getters.delay;
+    },
+    pause(): boolean {
+      return this.$store.getters.pause;
+    },
     gridReady() {
       return this.probabilityMultiplier > 0 && this.gridCount > 0;
     },
@@ -368,16 +302,10 @@ export default Vue.extend({
     }
   },
   watch: {
-    resetCycle(updatedResetCycle) {
-      if(updatedResetCycle && !this.evalActive) this.reloadGrid();
-    },
-    evalActive(updatedEvalActive) {
-      if(!updatedEvalActive && this.resetCycle) this.reloadGrid();
-    },
     pause(pauseLifeCycle) {
       if(!pauseLifeCycle) this.evaluateGrid();
     },
-    grid(newGrid) {
+    gridMap() {
       if(!this.pause) {
         setTimeout(() => {
           this.evaluateGrid();

@@ -102,13 +102,12 @@ import { mapState } from 'vuex';
 export default Vue.extend({
   name: 'GridControl',
   computed: {
-    ...mapState({
-      pause: state => state.pause,
-      ready: state => state.ready,      
-      delay: state => state.delay,
-      // rows: state => state.rows,
-      // cols: state => state.cols,
-    })
+    delay(): number {
+      return this.$store.getters.delay;
+    },
+    pause(): boolean {
+      return this.$store.getters.pause;
+    },
   },
   data: () => ({
     showDetails: false,

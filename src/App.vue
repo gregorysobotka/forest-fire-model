@@ -77,11 +77,6 @@ html {
 
 <script lang="ts">
 import Vue from 'vue';
-import { GridEcosystem } from '@/helpers';
-// console.log(GridEcosystem);
-
-const tes = new GridEcosystem(10, 10);
-console.log(tes)
 
 export default Vue.extend({
   name: 'App',

@@ -5,7 +5,7 @@ Vue.use(Vuex)
 
 export default new Vuex.Store({
   state: {
-    delay: 75,
+    delay: 50,
     pause: true,
     ready: false
   },
